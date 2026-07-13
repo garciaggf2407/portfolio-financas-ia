@@ -14,6 +14,7 @@ import {
 } from 'recharts';
 import { ApiError, getMonthlySummary, getSpendingHistory } from '../api/client';
 import type { CategorySummary, MonthlyTotal } from '../api/types';
+import AiSummaryCard from '../components/AiSummaryCard';
 import styles from './DashboardPage.module.css';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -171,6 +172,8 @@ function DashboardPage() {
           )}
         </div>
       </div>
+
+      <AiSummaryCard yearMonth={yearMonth} />
     </section>
   );
 }
