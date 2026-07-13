@@ -1,0 +1,559 @@
+openapi: 3.0.3
+info:
+  title: Portfolio Financas IA API
+  description: >
+    API para importacao de extrato bancario (CSV), categorizacao de
+    transacoes (manual e via IA), agregacoes de gasto por mes/categoria e
+    resumo mensal em linguagem natural gerado por LLM. Ver
+    docs/adr/001-modelo-dados.md para o modelo de dados subjacente.
+  version: "1.0.0"
+  license:
+    name: UNLICENSED
+servers:
+  - url: http://localhost:8080
+    description: >-
+      Ambiente local (E-1 a E-5). Servidor de producao sera adicionado aqui
+      apos o deploy publico (E-6, ver docs/DEPLOYMENT.md).
+security: []
+
+tags:
+  - name: transactions
+    description: Importacao, listagem e categorizacao manual de transacoes
+  - name: categories
+    description: CRUD de categorias
+  - name: summary
+    description: Agregacoes de gasto e resumo mensal via IA
+  - name: admin
+    description: Endpoints operacionais (inspecao de falhas de categorizacao)
+
+paths:
+  /transactions/import:
+    post:
+      tags: [transactions]
+      summary: Importa transacoes a partir de um arquivo CSV
+      description: >
+        Recebe um arquivo CSV (colunas: data, descricao, valor). Aceita
+        separador virgula ou ponto-e-virgula, e datas em dd/MM/yyyy ou
+        yyyy-MM-dd. Linhas invalidas sao reportadas individualmente e nao
+        abortam o import inteiro. Transacoes duplicadas (mesma
+        data+descricao+valor ja existente) sao ignoradas e contadas
+        separadamente. Ao final do import, transacoes sem categoria sao
+        publicadas na fila de categorizacao automatica (E-4) -- o import
+        retorna imediatamente, sem esperar a categorizacao terminar.
+      operationId: importTransactions
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: Arquivo CSV do extrato bancario
+      responses:
+        "200":
+          description: Import processado (mesmo que parcialmente, com linhas invalidas)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          description: Arquivo ausente ou nao e um CSV valido (formato irreconhecivel)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /transactions:
+    get:
+      tags: [transactions]
+      summary: Lista transacoes
+      operationId: listTransactions
+      parameters:
+        - name: yearMonth
+          in: query
+          required: false
+          description: Filtra por mes (formato yyyy-MM). Se omitido, retorna todos os meses.
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+            example: "2026-07"
+        - name: status
+          in: query
+          required: false
+          description: Filtra por status de categorizacao
+          schema:
+            $ref: "#/components/schemas/CategorizationStatus"
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+      responses:
+        "200":
+          description: Pagina de transacoes, ordenadas por data decrescente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionPage"
+        "400":
+          description: Parametro yearMonth ou status invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /transactions/{id}/category:
+    patch:
+      tags: [transactions]
+      summary: Categoriza (ou recategoriza) manualmente uma transacao
+      description: >
+        Atualiza a categoria da transacao e marca
+        status_categorizacao=categorizada_manual. Sobrescreve qualquer
+        categorizacao anterior, incluindo categorizada_ia -- a intervencao
+        humana tem precedencia (ver ADR-001).
+      operationId: categorizeTransaction
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategorizeTransactionRequest"
+      responses:
+        "200":
+          description: Transacao categorizada com sucesso
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Transaction"
+        "404":
+          description: Transacao ou categoria nao encontrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /categories:
+    get:
+      tags: [categories]
+      summary: Lista todas as categorias
+      operationId: listCategories
+      parameters:
+        - name: tipo
+          in: query
+          required: false
+          description: Filtra por tipo de categoria
+          schema:
+            $ref: "#/components/schemas/CategoryType"
+      responses:
+        "200":
+          description: Lista de categorias (inclui as categorias padrao criadas no seed)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Category"
+        "400":
+          description: Parametro tipo invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      tags: [categories]
+      summary: Cria uma nova categoria
+      operationId: createCategory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCategoryRequest"
+      responses:
+        "201":
+          description: Categoria criada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Category"
+        "409":
+          description: Ja existe uma categoria com esse nome
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /summary/{yearMonth}:
+    get:
+      tags: [summary]
+      summary: Total gasto por categoria em um mes
+      description: >
+        Retorna o total gasto por categoria no mes informado, ordenado do
+        maior para o menor. Calculado via query agregada (SUM + GROUP BY)
+        no banco, nao em memoria.
+      operationId: getMonthlySummaryByCategory
+      parameters:
+        - name: yearMonth
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+            example: "2026-07"
+      responses:
+        "200":
+          description: Totais por categoria para o mes solicitado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategorySummary"
+        "400":
+          description: Formato de yearMonth invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /summary/history:
+    get:
+      tags: [summary]
+      summary: Serie historica de gasto total por mes
+      description: >
+        Retorna o total gasto por mes nos ultimos N meses (mais recente
+        primeiro). Meses sem transacoes aparecem com total zero, nao sao
+        omitidos.
+      operationId: getSpendingHistory
+      parameters:
+        - name: months
+          in: query
+          required: false
+          description: Quantidade de meses no historico
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 36
+            default: 6
+      responses:
+        "200":
+          description: Serie historica, mais recente primeiro
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/MonthlyTotal"
+        "400":
+          description: Parametro months fora do intervalo permitido (1-36)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /summary/{yearMonth}/ai:
+    get:
+      tags: [summary]
+      summary: Resumo mensal em linguagem natural gerado por IA
+      description: >
+        Retorna o resumo em linguagem natural do mes, incluindo ao menos 1
+        insight comparativo com o mes anterior. Gerado sob demanda no
+        primeiro GET para o mes (se ainda nao existir) e reaproveitado em
+        chamadas subsequentes (persistido em MonthlySummary, nao gerado a
+        cada requisicao). Implementado em E-4.
+      operationId: getMonthlyAiSummary
+      parameters:
+        - name: yearMonth
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}$'
+            example: "2026-07"
+      responses:
+        "200":
+          description: Resumo disponivel (recem-gerado ou cacheado)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AiSummary"
+        "202":
+          description: >
+            Resumo ainda sendo gerado / nao disponivel para o mes (ex: sem
+            transacoes categorizadas suficientes). O frontend deve tratar
+            este caso com um estado de fallback.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Formato de yearMonth invalido
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: "Falha ao chamar o provedor de LLM (ex: rate limit do free tier)"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /admin/categorization/failures:
+    get:
+      tags: [admin]
+      summary: Lista mensagens de categorizacao que esgotaram retries (DLQ)
+      description: >
+        Inspeciona a dead-letter queue 'transaction.categorization.dlq'
+        (E-4/T-4.3.2), usada quando a categorizacao automatica via IA falha
+        repetidamente para uma transacao.
+      operationId: listCategorizationFailures
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Numero maximo de mensagens retornadas
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        "200":
+          description: Mensagens atualmente na DLQ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CategorizationFailure"
+        "400":
+          description: Parametro limit fora do intervalo permitido (1-500)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "503":
+          description: Nao foi possivel consultar a dead-letter queue no RabbitMQ
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    CategorizationStatus:
+      type: string
+      description: Ciclo de vida de categorizacao (ver ADR-001)
+      enum: [sem_categoria, categorizada_manual, categorizada_ia]
+
+    CategoryType:
+      type: string
+      enum: [DESPESA, RECEITA]
+
+    Category:
+      type: object
+      required: [id, nome, tipo, criadoEm]
+      properties:
+        id:
+          type: string
+          format: uuid
+        nome:
+          type: string
+          example: "Alimentacao"
+        tipo:
+          $ref: "#/components/schemas/CategoryType"
+        criadoEm:
+          type: string
+          format: date-time
+
+    CreateCategoryRequest:
+      type: object
+      required: [nome, tipo]
+      properties:
+        nome:
+          type: string
+          minLength: 1
+          maxLength: 100
+        tipo:
+          $ref: "#/components/schemas/CategoryType"
+
+    Transaction:
+      type: object
+      required:
+        - id
+        - data
+        - descricao
+        - valor
+        - origemImportacao
+        - statusCategorizacao
+      properties:
+        id:
+          type: string
+          format: uuid
+        data:
+          type: string
+          format: date
+        descricao:
+          type: string
+        valor:
+          type: number
+          format: double
+          description: Positivo = receita, negativo = despesa
+        categoria:
+          $ref: "#/components/schemas/Category"
+          nullable: true
+        origemImportacao:
+          type: string
+          example: "extrato-julho.csv"
+        statusCategorizacao:
+          $ref: "#/components/schemas/CategorizationStatus"
+
+    TransactionPage:
+      type: object
+      required: [content, page, size, totalElements]
+      properties:
+        content:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        page:
+          type: integer
+        size:
+          type: integer
+        totalElements:
+          type: integer
+
+    CategorizeTransactionRequest:
+      type: object
+      required: [categoriaId]
+      properties:
+        categoriaId:
+          type: string
+          format: uuid
+
+    ImportRowError:
+      type: object
+      required: [line, reason]
+      properties:
+        line:
+          type: integer
+          description: Numero da linha no CSV (1-indexed, incluindo header se aplicavel)
+        rawContent:
+          type: string
+        reason:
+          type: string
+          example: "Data em formato invalido: '31-13-2026'"
+
+    ImportResult:
+      type: object
+      required: [importadas, ignoradasDuplicadas, invalidas]
+      properties:
+        importadas:
+          type: integer
+          description: Quantidade de transacoes novas persistidas
+        ignoradasDuplicadas:
+          type: integer
+          description: Quantidade de linhas validas mas ja existentes (deduplicadas)
+        invalidas:
+          type: array
+          items:
+            $ref: "#/components/schemas/ImportRowError"
+
+    CategorySummaryItem:
+      type: object
+      required: [categoria, total]
+      properties:
+        categoria:
+          $ref: "#/components/schemas/Category"
+        total:
+          type: number
+          format: double
+
+    CategorySummary:
+      type: object
+      required: [yearMonth, itens]
+      properties:
+        yearMonth:
+          type: string
+          example: "2026-07"
+        itens:
+          type: array
+          description: Ordenado do maior para o menor total
+          items:
+            $ref: "#/components/schemas/CategorySummaryItem"
+
+    MonthlyTotal:
+      type: object
+      required: [yearMonth, total]
+      properties:
+        yearMonth:
+          type: string
+          example: "2026-07"
+        total:
+          type: number
+          format: double
+          description: 0 se o mes nao teve transacoes (meses nunca sao omitidos)
+
+    AiSummary:
+      type: object
+      required: [yearMonth, texto, geradoEm]
+      properties:
+        yearMonth:
+          type: string
+          example: "2026-07"
+        texto:
+          type: string
+          description: Resumo em portugues com ao menos 1 insight comparativo com o mes anterior
+        geradoEm:
+          type: string
+          format: date-time
+
+    CategorizationFailure:
+      type: object
+      required: [transactionId, descricao, tentativas, ultimoErro, falhouEm]
+      properties:
+        transactionId:
+          type: string
+          format: uuid
+        descricao:
+          type: string
+        tentativas:
+          type: integer
+        ultimoErro:
+          type: string
+        falhouEm:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required: [status, message]
+      properties:
+        status:
+          type: integer
+        message:
+          type: string
+        details:
+          type: array
+          items:
+            type: string
