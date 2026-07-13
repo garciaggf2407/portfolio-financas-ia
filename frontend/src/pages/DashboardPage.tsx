@@ -22,6 +22,12 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   currency: 'BRL',
 });
 
+// Assinatura compativel com o tipo `Formatter` do Recharts (valor pode
+// chegar como number, string ou undefined dependendo do payload).
+function formatTooltipValue(value: number | string | ReadonlyArray<number | string> | undefined): string {
+  return currencyFormatter.format(Number(value));
+}
+
 const PIE_COLORS = ['#aa3bff', '#1a9c5b', '#e5484d', '#f5a524', '#2b8ce6', '#c084fc', '#6b6375'];
 
 function getCurrentYearMonth(): string {
@@ -141,7 +147,7 @@ function DashboardPage() {
                     <Cell key={entry.name} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip formatter={(value: number) => currencyFormatter.format(value)} />
+                <Tooltip formatter={formatTooltipValue} />
                 <Legend />
               </PieChart>
             </ResponsiveContainer>
@@ -165,7 +171,7 @@ function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                 <XAxis dataKey="yearMonth" />
                 <YAxis />
-                <Tooltip formatter={(value: number) => currencyFormatter.format(value)} />
+                <Tooltip formatter={formatTooltipValue} />
                 <Line type="monotone" dataKey="total" stroke="#aa3bff" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
