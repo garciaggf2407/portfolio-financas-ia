@@ -103,7 +103,7 @@ function DashboardPage() {
   }, []);
 
   const pieData = (summary?.itens ?? []).map((item) => ({
-    name: item.categoria.nome,
+    name: item.categoria?.nome ?? 'Sem categoria',
     value: item.total,
   }));
 

@@ -484,7 +484,13 @@ components:
       required: [categoria, total]
       properties:
         categoria:
-          $ref: "#/components/schemas/Category"
+          allOf:
+            - $ref: "#/components/schemas/Category"
+          nullable: true
+          description: >-
+            null representa o total de transacoes ainda sem categoria no
+            mes (decisao CP-2). total sempre reflete magnitude de gasto
+            (valor absoluto), independente do sinal contabil bruto.
         total:
           type: number
           format: double

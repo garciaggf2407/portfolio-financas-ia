@@ -44,7 +44,9 @@ export interface ImportResult {
 }
 
 export interface CategorySummaryItem {
-  categoria: Category;
+  // null = transacoes sem categoria no mes (decisao CP-2). total sempre
+  // reflete magnitude de gasto (valor absoluto).
+  categoria: Category | null;
   total: number;
 }
 
