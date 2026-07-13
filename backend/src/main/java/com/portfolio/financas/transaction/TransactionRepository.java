@@ -44,4 +44,23 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
             ORDER BY total DESC
             """, nativeQuery = true)
     List<CategoryTotalProjection> sumByCategoryForMonth(@Param("yearMonth") String yearMonth);
+
+    /**
+     * Total de `valor` (mesma convencao de sinal do metodo acima) por mes,
+     * para os meses cujo yyyy-MM esteja no intervalo [startYearMonth,
+     * endYearMonth] (ambos inclusive). Meses sem nenhuma transacao
+     * simplesmente nao aparecem no resultado -- o preenchimento com zero e
+     * responsabilidade de SummaryHistoryService (T-2.3.2), pois a
+     * agregacao no banco nao tem como "inventar" uma linha para um mes
+     * sem dados.
+     */
+    @Query(value = """
+            SELECT to_char(t.data, 'YYYY-MM') AS yearMonth, SUM(t.valor) AS total
+            FROM transaction t
+            WHERE to_char(t.data, 'YYYY-MM') BETWEEN :startYearMonth AND :endYearMonth
+            GROUP BY to_char(t.data, 'YYYY-MM')
+            """, nativeQuery = true)
+    List<MonthlyTotalProjection> sumByMonthBetween(
+            @Param("startYearMonth") String startYearMonth,
+            @Param("endYearMonth") String endYearMonth);
 }
