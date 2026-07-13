@@ -2,6 +2,7 @@ import { useState } from 'react';
 import styles from './App.module.css';
 import UploadPage from './pages/UploadPage';
 import TransactionsPage from './pages/TransactionsPage';
+import DashboardPage from './pages/DashboardPage';
 
 // Navegacao simples via estado local (sem React Router): a app tem 3 telas
 // fixas e nao ha necessidade de URLs profundas/bookmarkaveis nesta fase.
@@ -41,7 +42,7 @@ function App() {
       <main className={styles.main}>
         {page === 'upload' && <UploadPage />}
         {page === 'transactions' && <TransactionsPage />}
-        {page === 'dashboard' && <p>Dashboard em construção.</p>}
+        {page === 'dashboard' && <DashboardPage />}
       </main>
     </div>
   );
