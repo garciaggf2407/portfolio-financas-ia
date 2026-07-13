@@ -11,29 +11,21 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Upload de extrato bancario em CSV (colunas: data, descricao, valor).
  * O parsing tolerante a formato (separador ',' ou ';', datas dd/MM/yyyy
- * ou yyyy-MM-dd) e feito por CsvTransactionParser; linhas invalidas sao
- * reportadas individualmente e nao abortam o import inteiro.
- *
- * NOTA para revisao: esta versao persiste todas as linhas validas sem
- * verificar duplicatas -- reimportar o mesmo arquivo falharia com uma
- * violacao da constraint UNIQUE em hash_deduplicacao. A deduplicacao
- * (mesma data+descricao+valor ja existente e ignorada e contada
- * separadamente) e responsabilidade de TransactionImportService, que
- * assume a persistencia por completo em T-2.1.2.
+ * ou yyyy-MM-dd) e a deduplicacao contra transacoes ja existentes sao
+ * responsabilidade de TransactionImportService (T-2.1.2); este controller
+ * cuida apenas do transporte HTTP (multipart -> texto -> resultado JSON).
  */
 @RestController
 public class CsvImportController {
 
-    private final TransactionRepository transactionRepository;
+    private final TransactionImportService transactionImportService;
 
-    public CsvImportController(TransactionRepository transactionRepository) {
-        this.transactionRepository = transactionRepository;
+    public CsvImportController(TransactionImportService transactionImportService) {
+        this.transactionImportService = transactionImportService;
     }
 
     @PostMapping(value = "/transactions/import", consumes = "multipart/form-data")
@@ -43,17 +35,7 @@ public class CsvImportController {
         }
 
         String content = readAsUtf8(file);
-        CsvTransactionParser.ParseOutcome outcome = CsvTransactionParser.parse(content);
-
-        List<Transaction> toPersist = new ArrayList<>();
-        for (ParsedTransactionRow row : outcome.validRows()) {
-            String hash = DeduplicationHash.compute(row.data(), row.descricao(), row.valor());
-            toPersist.add(new Transaction(
-                    row.data(), row.descricao(), row.valor(), file.getOriginalFilename(), hash));
-        }
-        transactionRepository.saveAll(toPersist);
-
-        ImportResult result = new ImportResult(toPersist.size(), 0, outcome.invalidRows());
+        ImportResult result = transactionImportService.importCsv(content, file.getOriginalFilename());
         return ResponseEntity.ok(result);
     }
 
