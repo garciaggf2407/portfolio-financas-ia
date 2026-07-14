@@ -159,6 +159,41 @@ class CsvTransactionParserTest {
     }
 
     @Test
+    void headerComColunasReordenadasEExtrasEMapeadoPorNome() {
+        // Formato real de export do Nubank: 4 colunas, Valor antes de
+        // Descricao, mais uma coluna Identificador que nao existe no
+        // layout legado -- deve ser mapeado por nome e a coluna extra
+        // ignorada, em vez de cair no erro posicional de "3 colunas".
+        String csv = """
+                Data,Valor,Identificador,Descrição
+                02/06/2026,-74.79,6a1f6919-eb27-478c-bd3e-205202cc7add,Transferência enviada pelo Pix
+                04/06/2026,-140.00,6a21a529-8baf-4ea0-93ba-9b2484ee5356,Pagamento de fatura
+                """;
+
+        ParseOutcome outcome = CsvTransactionParser.parse(csv);
+
+        assertThat(outcome.invalidRows()).isEmpty();
+        assertThat(outcome.validRows()).hasSize(2);
+        assertThat(outcome.validRows().get(0).data()).isEqualTo(LocalDate.of(2026, 6, 2));
+        assertThat(outcome.validRows().get(0).descricao()).isEqualTo("Transferência enviada pelo Pix");
+        assertThat(outcome.validRows().get(0).valor()).isEqualByComparingTo("-74.79");
+    }
+
+    @Test
+    void headerComColunaValorAusenteCaiNoLayoutLegadoPosicional() {
+        String csv = """
+                data,descricao,montante
+                01/07/2026,Supermercado,-150.00
+                """;
+
+        ParseOutcome outcome = CsvTransactionParser.parse(csv);
+
+        assertThat(outcome.invalidRows()).isEmpty();
+        assertThat(outcome.validRows()).hasSize(1);
+        assertThat(outcome.validRows().get(0).valor()).isEqualByComparingTo("-150.00");
+    }
+
+    @Test
     void linhasValidasEInvalidasMisturadasPreservamOsNumerosDeLinhaOriginais() {
         String csv = """
                 data,descricao,valor
