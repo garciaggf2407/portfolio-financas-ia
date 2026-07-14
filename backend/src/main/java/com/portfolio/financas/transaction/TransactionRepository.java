@@ -1,5 +1,7 @@
 package com.portfolio.financas.transaction;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -10,6 +12,29 @@ import java.util.Set;
 import java.util.UUID;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
+
+    /**
+     * Listagem paginada com filtros opcionais de mes e status de
+     * categorizacao, ordenada por data decrescente (GET /transactions,
+     * contrato definido em E-1/T-1.2.3, implementado ao verificar E-4 --
+     * gap pre-existente em E-2/E-3: o frontend (T-3.2.1) ja chamava este
+     * endpoint, mas ele nunca tinha sido implementado no backend). JPQL
+     * (nao query nativa) para o Spring Data derivar a count query
+     * automaticamente para Page. LEFT JOIN FETCH em categoria (associacao
+     * to-one, nullable) evita LazyInitializationException ao montar
+     * TransactionResponse -- controller acessa a categoria fora da
+     * transacao do repositorio (spring.jpa.open-in-view=false).
+     */
+    @Query("""
+            SELECT t FROM Transaction t
+            LEFT JOIN FETCH t.categoria
+            WHERE (:yearMonth IS NULL OR FUNCTION('to_char', t.data, 'YYYY-MM') = :yearMonth)
+            AND (:status IS NULL OR t.statusCategorizacao = :status)
+            ORDER BY t.data DESC
+            """)
+    Page<Transaction> findAllFiltered(@Param("yearMonth") String yearMonth,
+                                       @Param("status") CategorizationStatus status,
+                                       Pageable pageable);
 
     /**
      * Subconjunto de `hashes` que ja existe em transaction.hash_deduplicacao.
