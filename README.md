@@ -98,15 +98,21 @@ infraestrutura real (docker-compose + chave real da Groq API): import de
 CSV, categorizacao automatica assincrona via LLM, resumo mensal em
 linguagem natural com cache, e fila com retry/dead-letter queue.
 
-E-4 aguarda **CP-4**, o checkpoint humano mais critico do blueprint: o
-operador precisa revisar e conseguir explicar, sem consultar o codigo, por
-que a categorizacao e assincrona e o que acontece quando o LLM falha (ver
-`.planning/STATE.md`). E-5 (testes automatizados + CI) e E-6 (deploy
-publico + documentacao final) ainda nao foram iniciados.
+CP-4 (o checkpoint humano mais critico do blueprint) foi resolvido com uma
+ressalva: o operador delegou a revisao/defesa tecnica da camada de IA e
+mensageria, entao a justificativa formal (por que e assincrono, o que
+acontece quando o LLM falha) esta documentada em
+`docs/adr/002-categorizacao-assincrona.md` em vez de internalizada pelo
+operador (ver `.planning/STATE.md` para o detalhe). E-5 (testes
+automatizados + CI) e E-6 (deploy publico + documentacao final) ainda nao
+foram iniciados.
 
 ## Documentacao
 
 - [`docs/adr/001-modelo-dados.md`](docs/adr/001-modelo-dados.md) — decisoes
   do modelo de dados financeiro (adicionado em E-1/T-1.2.1)
+- [`docs/adr/002-categorizacao-assincrona.md`](docs/adr/002-categorizacao-assincrona.md) —
+  por que a categorizacao via IA e assincrona (fila) e o que acontece
+  quando o LLM falha (retry + dead-letter queue), adicionado em E-4/T-4.3.2
 - [`docs/openapi.yaml`](docs/openapi.yaml) — contrato de API (adicionado em
   E-1/T-1.2.3)
