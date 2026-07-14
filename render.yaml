@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: financas-ia-api
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_DATASOURCE_URL
+        sync: false
+      - key: SPRING_DATASOURCE_USERNAME
+        sync: false
+      - key: SPRING_DATASOURCE_PASSWORD
+        sync: false
+      - key: SPRING_RABBITMQ_HOST
+        sync: false
+      - key: SPRING_RABBITMQ_PORT
+        sync: false
+      - key: SPRING_RABBITMQ_USERNAME
+        sync: false
+      - key: SPRING_RABBITMQ_PASSWORD
+        sync: false
+      - key: SPRING_RABBITMQ_VIRTUAL_HOST
+        sync: false
+      - key: SPRING_RABBITMQ_SSL_ENABLED
+        value: "true"
+      - key: GROQ_API_KEY
+        sync: false
+      - key: APP_CORS_ORIGIN
+        sync: false
