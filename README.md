@@ -110,11 +110,13 @@ as camadas que so tinham cobertura indireta, testes de integracao com
 Testcontainers (Postgres + RabbitMQ reais, nao mockados) cobrindo import de
 CSV, CRUD de categoria e o fluxo completo de retry/dead-letter queue, e um
 pipeline GitHub Actions (`.github/workflows/ci.yml`) para backend e
-frontend. Ressalva: como este repositorio nao tem remote configurado, um
-run real do GitHub Actions ("CI verde" no sentido literal) ainda nao foi
-confirmado — ver `.planning/STATE.md` (CP-5) para o detalhe do que foi
-verificado localmente. E-6 (deploy publico + documentacao final) ainda nao
-foi iniciado.
+frontend -- [CI verde e confirmado](https://github.com/garciaggf2407/portfolio-financas-ia/actions).
+Rodar os testes de integracao pela primeira vez contra infraestrutura real
+de CI (nao so localmente) encontrou 2 bugs reais de producao (categoria
+sem `criado_em`, parsing de timestamp na dead-letter queue) alem de bugs
+de configuracao do proprio pipeline -- ver `.planning/STATE.md` (CP-5)
+para o detalhe de cada um. E-6 (deploy publico + documentacao final) ainda
+nao foi iniciado.
 
 ## Documentacao
 
