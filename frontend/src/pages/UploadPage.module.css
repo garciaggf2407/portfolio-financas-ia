@@ -42,6 +42,13 @@
   opacity: 0.5;
 }
 
+.slowHint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.75;
+}
+
 .errorBox {
   padding: 12px 16px;
   border-radius: 6px;

@@ -8,6 +8,7 @@ function UploadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [isSlow, setIsSlow] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
 
@@ -19,8 +20,14 @@ function UploadPage() {
     }
 
     setIsUploading(true);
+    setIsSlow(false);
     setError(null);
     setResult(null);
+
+    // Backend roda em plano free (Render), que hiberna apos inatividade e
+    // pode levar ~1min pra acordar na primeira requisicao -- sem esse aviso,
+    // a tela parece travada e sem feedback nenhum durante esse tempo.
+    const slowHintTimer = setTimeout(() => setIsSlow(true), 5000);
 
     try {
       const importResult = await importTransactions(selectedFile);
@@ -34,7 +41,9 @@ function UploadPage() {
           : 'Falha ao enviar o arquivo. Verifique se o backend está disponível.',
       );
     } finally {
+      clearTimeout(slowHintTimer);
       setIsUploading(false);
+      setIsSlow(false);
     }
   }
 
@@ -57,6 +66,13 @@ function UploadPage() {
           {isUploading ? 'Enviando...' : 'Enviar CSV'}
         </button>
       </form>
+
+      {isSlow && (
+        <p className={styles.slowHint} role="status">
+          O servidor está acordando (plano gratuito hiberna após inatividade) — pode levar
+          até 1 minuto na primeira requisição. Aguarde, não recarregue a página.
+        </p>
+      )}
 
       {error && (
         <div className={styles.errorBox} role="alert">
