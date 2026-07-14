@@ -3,7 +3,6 @@ package com.portfolio.financas.summary;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
 import java.math.BigDecimal;
@@ -32,8 +31,14 @@ public class MonthlySummary {
     @Column(name = "total_gasto", nullable = false, precision = 12, scale = 2)
     private BigDecimal totalGasto;
 
-    @Lob
-    @Column(name = "texto_gerado_por_ia")
+    /**
+     * Texto curto (1-2 paragrafos), guardado como `text` no Postgres --
+     * NAO usar @Lob aqui: no Hibernate 6, @Lob num String mapeia por
+     * padrao para `oid` (large object do Postgres), incompativel com a
+     * coluna `text` criada pela migration. columnDefinition forca o tipo
+     * certo e evita SchemaManagementException na validacao do Hibernate.
+     */
+    @Column(name = "texto_gerado_por_ia", columnDefinition = "text")
     private String textoGeradoPorIa;
 
     @Column(name = "gerado_em")

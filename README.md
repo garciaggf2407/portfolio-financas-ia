@@ -53,7 +53,7 @@ portfolio-financas-ia/
 docker-compose up -d
 ```
 
-- Postgres disponivel em `localhost:5432` (db `financas_ia`, user/senha `financas`/`financas`)
+- Postgres disponivel em `localhost:5433` (db `financas_ia`, user/senha `financas`/`financas`) -- porta 5433, nao a padrao 5432, para nao conflitar com um Postgres nativo eventualmente instalado na maquina do desenvolvedor
 - RabbitMQ AMQP em `localhost:5672`, management UI em [http://localhost:15672](http://localhost:15672) (user/senha `guest`/`guest`)
 
 Para derrubar os containers preservando os volumes:
