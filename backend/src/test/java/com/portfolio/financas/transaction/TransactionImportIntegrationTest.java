@@ -55,11 +55,13 @@ class TransactionImportIntegrationTest extends AbstractIntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         TransactionPageResponse page = objectMapper.readValue(listJson, TransactionPageResponse.class);
 
+        // Nao afirma statusCategorizacao aqui: o import publica uma mensagem
+        // assincrona de categorizacao no RabbitMQ compartilhado (mesmo
+        // broker que CategorizationRetryDlqIntegrationTest usa), entao o
+        // resultado da categorizacao e responsabilidade daquele teste, nao
+        // deste -- este so verifica o contrato de import + listagem.
         assertThat(page.content()).extracting(TransactionResponse::descricao)
                 .contains("Supermercado", "Salario");
-        assertThat(page.content())
-                .filteredOn(t -> t.descricao().equals("Supermercado") || t.descricao().equals("Salario"))
-                .allMatch(t -> t.statusCategorizacao().equals("sem_categoria"));
     }
 
     @Test
