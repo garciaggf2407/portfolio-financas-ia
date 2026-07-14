@@ -44,15 +44,22 @@ class TransactionImportIntegrationTest extends AbstractIntegrationTest {
         assertThat(importResult.ignoradasDuplicadas()).isEqualTo(0);
         assertThat(importResult.invalidas()).isEmpty();
 
-        String listJson = mockMvc.perform(get("/transactions").param("yearMonth", "2026-07"))
+        // size=200 (o maximo aceito por GET /transactions) e assertions por
+        // conteudo, nao por totalElements exato: os demais metodos desta
+        // classe (e CategorizationRetryDlqIntegrationTest) tambem persistem
+        // transacoes de julho/2026 no MESMO Postgres (containers
+        // compartilhados de proposito, ver AbstractIntegrationTest), e a
+        // ordem de execucao dos testes nao e garantida.
+        String listJson = mockMvc.perform(get("/transactions").param("yearMonth", "2026-07").param("size", "200"))
                 .andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         TransactionPageResponse page = objectMapper.readValue(listJson, TransactionPageResponse.class);
 
-        assertThat(page.totalElements()).isEqualTo(2);
         assertThat(page.content()).extracting(TransactionResponse::descricao)
-                .containsExactlyInAnyOrder("Supermercado", "Salario");
-        assertThat(page.content()).allMatch(t -> t.statusCategorizacao().equals("sem_categoria"));
+                .contains("Supermercado", "Salario");
+        assertThat(page.content())
+                .filteredOn(t -> t.descricao().equals("Supermercado") || t.descricao().equals("Salario"))
+                .allMatch(t -> t.statusCategorizacao().equals("sem_categoria"));
     }
 
     @Test
