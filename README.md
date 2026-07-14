@@ -1,13 +1,8 @@
 # Portfolio Financas IA
 
 Gestor de financas pessoais que importa extrato bancario em CSV e categoriza
-transacoes automaticamente via IA (LLM). Projeto em construcao seguindo o
-Blueprint `BP-2026-07-13-003` (ATHENA OS).
-
-> Este README cobre apenas o setup de ambiente da fase E-1 (Fundacao). A
-> documentacao completa de arquitetura, decisoes tecnicas e demo publica sera
-> escrita na fase E-6 (`docs/DEPLOYMENT.md` e a secao de arquitetura deste
-> arquivo).
+transacoes automaticamente via IA (LLM). Construido seguindo o Blueprint
+`BP-2026-07-13-003` (ATHENA OS).
 
 ## Stack
 
@@ -16,6 +11,53 @@ Blueprint `BP-2026-07-13-003` (ATHENA OS).
 - **Mensageria:** RabbitMQ 3.13 (categorizacao assincrona via IA, fase E-4)
 - **Frontend:** React 19 + TypeScript + Vite, CSS Modules (sem bibliotecas de
   UI/HTTP externas — `fetch` nativo)
+
+## Arquitetura
+
+```mermaid
+flowchart LR
+    User[Usuario] --> FE[Frontend React/Vite]
+    FE -->|REST/JSON| BE[Backend Spring Boot]
+    BE --> DB[(PostgreSQL)]
+    BE -->|publica evento| MQ[[RabbitMQ]]
+    MQ -->|consome| BE
+    BE -->|categorizar/resumir| AI[Groq API - LLM]
+    MQ -.retries esgotados.-> DLQ[[Dead-Letter Queue]]
+```
+
+Fluxo: o import de um extrato CSV persiste as transacoes de forma sincrona
+e publica um evento por transacao na fila (`TransactionsImportedEvent`); um
+consumer separado chama a Groq API para categorizar cada uma de forma
+assincrona, com retry exponencial e fallback para uma DLQ inspecionavel via
+endpoint admin. O resumo mensal em linguagem natural tambem passa pela
+mesma API de LLM, cacheado em `MonthlySummary` para nao re-gerar a cada
+request.
+
+### Decisoes tecnicas justificadas
+
+1. **Categorizacao assincrona via fila, com retry + DLQ** (`T-4.3.1`/`T-4.3.2`)
+   — evita que a latencia de uma chamada de rede ao LLM (segundos, sujeita
+   a rate limit) trave o import de um extrato com dezenas/centenas de
+   transacoes, e evita que uma falha do LLM na transacao N invalide as
+   demais. Detalhe completo, incluindo o que acontece quando o LLM falha
+   depois de esgotar as tentativas: [ADR-002](docs/adr/002-categorizacao-assincrona.md).
+2. **Modelo de dados** (`T-1.2.1`) — normalizacao de categoria como
+   entidade propria (nao enum/string livre), permitindo categorias
+   customizadas pelo usuario e reuso pela IA sem migration. Detalhe:
+   [ADR-001](docs/adr/001-modelo-dados.md).
+3. **Parser de CSV tolerante em vez de biblioteca terceira** (`T-2.1.2`,
+   ver `CsvTransactionParser`) — extratos bancarios reais variam em
+   separador (`,`/`;`) e formato de data (`dd/MM/yyyy` vs `yyyy-MM-dd`) sem
+   seguir RFC 4180 a rigor (sem campos entre aspas). Um parser proprio e
+   pequeno, com limitacoes documentadas em codigo, evitou trazer uma
+   dependencia pesada para um formato simples — trade-off consciente: nao
+   cobre CSV com campos entre aspas contendo o separador, nem separador de
+   milhar.
+4. **Frontend sem bibliotecas de UI/HTTP externas** (`T-3.1.1`) — `fetch`
+   nativo e CSS Modules em vez de um design system ou client HTTP (ex.:
+   axios, TanStack Query). Escopo do projeto (portfolio, 3 telas) nao
+   justificava a curva de configuracao extra; trade-off reavaliavel se o
+   frontend crescer em numero de telas/estado compartilhado.
 
 ## Estrutura do repositorio
 
@@ -115,8 +157,30 @@ Rodar os testes de integracao pela primeira vez contra infraestrutura real
 de CI (nao so localmente) encontrou 2 bugs reais de producao (categoria
 sem `criado_em`, parsing de timestamp na dead-letter queue) alem de bugs
 de configuracao do proprio pipeline -- ver `.planning/STATE.md` (CP-5)
-para o detalhe de cada um. E-6 (deploy publico + documentacao final) ainda
-nao foi iniciado.
+para o detalhe de cada um.
+
+E-6 (deploy publico + documentacao final) esta completo. Demo publica no ar:
+
+- Frontend: https://portfolio-financas-ia.vercel.app
+- Backend: https://financas-ia-api.onrender.com (`/actuator/health`)
+
+Infra gerenciada: Neon (Postgres), CloudAMQP (RabbitMQ), Render (backend,
+via `render.yaml` + Docker multi-stage -- Render nao tem runtime nativo
+Java), Vercel (frontend). Passo a passo completo em
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
+Dois bugs reais so apareceram testando a demo publica com dado de verdade
+(nao apareciam em dev local nem nos testes automatizados):
+
+1. **Parser de CSV so aceitava 3 colunas em ordem fixa** -- o export real
+   do Nubank tem 4 colunas em ordem diferente
+   (`Data,Valor,Identificador,Descrição`). Corrigido para mapear colunas
+   por nome quando ha header reconhecivel, mantendo o layout posicional
+   como fallback (retrocompativel).
+2. **Backend "sumia" por ~80s na primeira requisicao do dia** -- o Render
+   free tier hiberna o servico apos inatividade. Mitigado com um ping
+   periodico via GitHub Actions (`.github/workflows/keep-warm.yml`,
+   08h-20h BRT) e um aviso na UI quando a requisicao demora.
 
 ## Documentacao
 
@@ -127,3 +191,5 @@ nao foi iniciado.
   quando o LLM falha (retry + dead-letter queue), adicionado em E-4/T-4.3.2
 - [`docs/openapi.yaml`](docs/openapi.yaml) — contrato de API (adicionado em
   E-1/T-1.2.3)
+- [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — guia de deploy publico
+  (Render + Neon + CloudAMQP + Vercel), adicionado em E-6/T-6.1.1
