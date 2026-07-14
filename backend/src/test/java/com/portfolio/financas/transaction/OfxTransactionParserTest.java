@@ -2,7 +2,10 @@ package com.portfolio.financas.transaction;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -147,5 +150,43 @@ class OfxTransactionParserTest {
         assertThat(outcome.validRows()).isEmpty();
         assertThat(outcome.invalidRows()).hasSize(1);
         assertThat(outcome.invalidRows().get(0).reason()).contains("TRNAMT invalido");
+    }
+
+    @Test
+    void parseiaFixtureRealDeBancoBrasileiro() throws IOException {
+        // sample-real-br.ofx: fixture de teste publica (dados ficticios, formato
+        // real) de github.com/annacruz/ofx -- OFX 1.x/SGML com BANKID de banco BR
+        // (0356) e moeda BRL. Mistura estilos reais: maioria das tags-folha sem
+        // fechamento (padrao SGML), mas um STMTTRN usa fechamento XML completo
+        // (<TRNTYPE>OTHER</TRNTYPE>) e datas com sufixo timezone ([-3:BRT]).
+        String ofx = readClasspathResource("/ofx/sample-real-br.ofx");
+
+        ParseOutcome outcome = OfxTransactionParser.parse(ofx);
+
+        assertThat(outcome.invalidRows()).isEmpty();
+        assertThat(outcome.validRows()).hasSize(36);
+
+        ParsedTransactionRow primeira = outcome.validRows().get(0);
+        assertThat(primeira.data()).isEqualTo(LocalDate.of(2009, 10, 9));
+        assertThat(primeira.valor()).isEqualByComparingTo("-35.34");
+        assertThat(primeira.descricao()).isEqualTo("COMPRA VISA ELECTRON");
+
+        // 3a transacao: bloco com tags XML fechadas + DTPOSTED com sufixo
+        // timezone [-3:BRT] + sem NAME (usa fallback MEMO).
+        ParsedTransactionRow terceira = outcome.validRows().get(2);
+        assertThat(terceira.data()).isEqualTo(LocalDate.of(2009, 10, 19));
+        assertThat(terceira.valor()).isEqualByComparingTo("-148.40");
+        assertThat(terceira.descricao()).isEqualTo("Pagto conta telefone");
+
+        ParsedTransactionRow ultima = outcome.validRows().get(35);
+        assertThat(ultima.data()).isEqualTo(LocalDate.of(2009, 11, 3));
+        assertThat(ultima.valor()).isEqualByComparingTo("-89.03");
+        assertThat(ultima.descricao()).isEqualTo("COMPRA VISA ELECTRON");
+    }
+
+    private static String readClasspathResource(String path) throws IOException {
+        try (InputStream is = OfxTransactionParserTest.class.getResourceAsStream(path)) {
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 }

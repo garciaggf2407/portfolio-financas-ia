@@ -26,11 +26,12 @@ import java.util.regex.Pattern;
  * embutido no proprio OFX -- diferente do CSV, nao ha "coluna de tipo"
  * separada), NAME (descricao, com fallback para MEMO quando NAME ausente).
  *
- * Limitacao conhecida: nunca testado contra um export real de banco
- * brasileiro (implementado contra a especificacao publica do OFX), ao
- * contrario do CsvTransactionParser, que ja foi validado contra um extrato
- * real do Nubank. Testar contra pelo menos 1 arquivo real antes de
- * considerar equivalente em confianca.
+ * Validado contra fixture de formato real de banco brasileiro (BANKID BR,
+ * BRL, mistura de tags SGML sem fechamento e blocos com fechamento XML
+ * completo, datas com sufixo de timezone) -- ver
+ * OfxTransactionParserTest#parseiaFixtureRealDeBancoBrasileiro. Nenhum bug
+ * exposto, diferente do CsvTransactionParser (que expos 1 bug real contra
+ * extrato do Nubank).
  */
 final class OfxTransactionParser {
 
