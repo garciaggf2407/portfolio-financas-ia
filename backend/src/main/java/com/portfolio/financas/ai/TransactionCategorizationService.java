@@ -81,14 +81,16 @@ public class TransactionCategorizationService {
                 return Optional.of(categoria);
             }
         }
-        // Fallback tolerante: a IA por vezes responde com texto extra em volta
-        // do nome da categoria (ex: "Categoria: Alimentacao").
+        // Fallback tolerante: a IA por vezes responde com texto extra em
+        // volta do nome da categoria (ex: "Categoria: Alimentacao"). So
+        // aceita se exatamente uma categoria bater por substring -- se
+        // duas categorias casarem (ex: nomes que sao substring uma da
+        // outra), a resposta e ambigua e deve falhar em vez de escolher a
+        // primeira da lista silenciosamente.
         String cleanedLower = cleaned.toLowerCase(Locale.ROOT);
-        for (Category categoria : categorias) {
-            if (cleanedLower.contains(categoria.getNome().toLowerCase(Locale.ROOT))) {
-                return Optional.of(categoria);
-            }
-        }
-        return Optional.empty();
+        List<Category> candidatas = categorias.stream()
+                .filter(categoria -> cleanedLower.contains(categoria.getNome().toLowerCase(Locale.ROOT)))
+                .toList();
+        return candidatas.size() == 1 ? Optional.of(candidatas.get(0)) : Optional.empty();
     }
 }

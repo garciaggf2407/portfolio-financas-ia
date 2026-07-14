@@ -1,11 +1,12 @@
 package com.portfolio.financas.ai;
 
+import com.portfolio.financas.category.CategoryType;
 import com.portfolio.financas.summary.MonthlySummary;
 import com.portfolio.financas.summary.MonthlySummaryRepository;
 import com.portfolio.financas.transaction.CategoryTotalProjection;
 import com.portfolio.financas.transaction.TransactionRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -55,28 +56,32 @@ public class MonthlySummaryService {
      * @throws SummaryGenerationException se a chamada a Groq API falhar --
      *                                    o controller traduz para HTTP 503
      */
-    @Transactional
     public Optional<MonthlySummary> getOrGenerate(String yearMonth) {
         Optional<MonthlySummary> existing = monthlySummaryRepository.findByMes(yearMonth);
         if (existing.isPresent() && existing.get().possuiResumoIa()) {
             return existing;
         }
 
-        List<CategoryTotalProjection> categoriasAtual = transactionRepository.sumByCategoryForMonth(yearMonth);
-        if (categoriasAtual.isEmpty()) {
+        List<CategoryTotalProjection> transacoesDoMes = transactionRepository.sumByCategoryForMonth(yearMonth);
+        if (transacoesDoMes.isEmpty()) {
             return Optional.empty();
         }
 
-        BigDecimal totalAtual = somaTotais(categoriasAtual);
-        List<CategoryTotalProjection> categoriasAnterior =
-                transactionRepository.sumByCategoryForMonth(mesAnterior(yearMonth));
-        BigDecimal totalAnterior = categoriasAnterior.isEmpty() ? null : somaTotais(categoriasAnterior);
+        List<CategoryTotalProjection> despesasAtual = apenasDespesas(transacoesDoMes);
+        BigDecimal totalAtual = somaTotais(despesasAtual);
+        List<CategoryTotalProjection> despesasAnterior =
+                apenasDespesas(transactionRepository.sumByCategoryForMonth(mesAnterior(yearMonth)));
+        BigDecimal totalAnterior = despesasAnterior.isEmpty() ? null : somaTotais(despesasAnterior);
 
+        // Chamada de rede (segundos de latencia) feita fora de qualquer
+        // transacao/conexao de banco -- nao ha @Transactional neste
+        // metodo de proposito, para nao reter uma conexao do pool
+        // enquanto se espera a Groq API responder.
         String texto;
         try {
             texto = groqClient.chat(
                     SYSTEM_PROMPT,
-                    buildUserPrompt(yearMonth, categoriasAtual, totalAtual, totalAnterior),
+                    buildUserPrompt(yearMonth, despesasAtual, totalAtual, totalAnterior),
                     0.4,
                     400);
         } catch (GroqApiException e) {
@@ -86,7 +91,16 @@ public class MonthlySummaryService {
         MonthlySummary summary = existing.orElseGet(() -> new MonthlySummary(yearMonth, totalAtual));
         summary.setTotalGasto(totalAtual);
         summary.aplicarResumoIa(texto, LocalDateTime.now());
-        monthlySummaryRepository.save(summary);
+        try {
+            monthlySummaryRepository.save(summary);
+        } catch (DataIntegrityViolationException e) {
+            // Duas primeiras requisicoes para o mesmo mes em paralelo: a
+            // outra venceu a corrida contra a constraint UNIQUE(mes) e ja
+            // persistiu o resumo dela primeiro. Em vez de propagar erro,
+            // devolve o resumo da vencedora -- o resultado e o mesmo do
+            // ponto de vista do cliente (um resumo valido para o mes).
+            return monthlySummaryRepository.findByMes(yearMonth);
+        }
 
         return Optional.of(summary);
     }
@@ -95,15 +109,28 @@ public class MonthlySummaryService {
         return YearMonth.parse(yearMonth, YEAR_MONTH_FORMAT).minusMonths(1).format(YEAR_MONTH_FORMAT);
     }
 
+    /**
+     * Exclui categorias RECEITA -- total_gasto e a "soma de todas as
+     * despesas do mes" (docs/adr/001-modelo-dados.md), nao o saldo
+     * liquido. Transacoes sem categoria (tipo nulo, decisao CP-2)
+     * permanecem incluidas: sao gasto de status desconhecido, nao receita
+     * conhecida.
+     */
+    private List<CategoryTotalProjection> apenasDespesas(List<CategoryTotalProjection> categorias) {
+        return categorias.stream()
+                .filter(c -> !CategoryType.RECEITA.name().equals(c.getTipo()))
+                .toList();
+    }
+
     private BigDecimal somaTotais(List<CategoryTotalProjection> categorias) {
         return categorias.stream()
                 .map(CategoryTotalProjection::getTotal)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private String buildUserPrompt(String yearMonth, List<CategoryTotalProjection> categoriasAtual,
+    private String buildUserPrompt(String yearMonth, List<CategoryTotalProjection> despesasAtual,
                                     BigDecimal totalAtual, BigDecimal totalAnterior) {
-        String quebraPorCategoria = categoriasAtual.stream()
+        String quebraPorCategoria = despesasAtual.stream()
                 .map(c -> "- %s: R$ %s".formatted(
                         c.getNome() != null ? c.getNome() : "Sem categoria", c.getTotal()))
                 .collect(Collectors.joining("\n"));
@@ -119,6 +146,7 @@ public class MonthlySummaryService {
                 %s
 
                 Gastos por categoria no mes:
-                %s""".formatted(yearMonth, totalAtual, linhaMesAnterior, quebraPorCategoria);
+                %s""".formatted(yearMonth, totalAtual, linhaMesAnterior,
+                quebraPorCategoria.isBlank() ? "(nenhuma despesa registrada)" : quebraPorCategoria);
     }
 }
