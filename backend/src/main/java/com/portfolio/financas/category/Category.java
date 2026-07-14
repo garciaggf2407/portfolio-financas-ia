@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
 import java.time.LocalDateTime;
@@ -42,6 +43,21 @@ public class Category {
         this.id = UUID.randomUUID();
         this.nome = nome;
         this.tipo = tipo;
+    }
+
+    /**
+     * Categorias criadas pela migration V1__init.sql confiam no
+     * DEFAULT now() da coluna, mas categorias criadas via
+     * CategoryController#create passam por Hibernate -- que valida
+     * nullable=false no proprio objeto Java antes de gerar o INSERT,
+     * sem saber do default do banco. Sem isto, POST /categories falha
+     * com PropertyValueException (so seria exercitado por um teste de
+     * integracao contra Postgres real, nao pelo CategoryControllerTest
+     * mockado).
+     */
+    @PrePersist
+    void onCreate() {
+        this.criadoEm = LocalDateTime.now();
     }
 
     public UUID getId() {

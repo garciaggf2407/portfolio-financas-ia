@@ -21,7 +21,7 @@ import org.springframework.retry.interceptor.RetryOperationsInterceptor;
 import org.springframework.retry.policy.SimpleRetryPolicy;
 import org.springframework.retry.support.RetryTemplate;
 
-import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -107,7 +107,10 @@ public class RabbitConfig {
             protected Map<? extends String, ?> additionalHeaders(Message message, Throwable cause) {
                 Map<String, Object> headers = new HashMap<>();
                 headers.put(HEADER_ATTEMPTS, maxAttempts);
-                headers.put(HEADER_FAILED_AT, Instant.now().toString());
+                // LocalDateTime.toString() (nao Instant.toString(), que
+                // termina em 'Z' e quebra o LocalDateTime.parse() feito
+                // por CategorizationFailureService#parseFailedAt).
+                headers.put(HEADER_FAILED_AT, LocalDateTime.now().toString());
                 return headers;
             }
         };
