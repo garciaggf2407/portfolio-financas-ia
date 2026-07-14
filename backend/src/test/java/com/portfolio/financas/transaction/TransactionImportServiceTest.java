@@ -6,6 +6,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -15,6 +16,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -30,10 +32,13 @@ class TransactionImportServiceTest {
     @Mock
     private TransactionRepository transactionRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     @Test
-    void primeiroImportPersisteTodasAsLinhasValidas() {
+    void primeiroImportPersisteTodasAsLinhasValidasEPublicaEventoDeImportacao() {
         when(transactionRepository.findExistingHashes(any())).thenReturn(Set.of());
-        TransactionImportService service = new TransactionImportService(transactionRepository);
+        TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);
 
         ImportResult result = service.importCsv(CSV, "extrato-julho.csv");
 
@@ -45,6 +50,11 @@ class TransactionImportServiceTest {
         ArgumentCaptor<List<Transaction>> captor = ArgumentCaptor.forClass(List.class);
         verify(transactionRepository).saveAll(captor.capture());
         assertThat(captor.getValue()).hasSize(2);
+
+        ArgumentCaptor<TransactionsImportedEvent> eventCaptor =
+                ArgumentCaptor.forClass(TransactionsImportedEvent.class);
+        verify(eventPublisher).publishEvent(eventCaptor.capture());
+        assertThat(eventCaptor.getValue().transactionIds()).hasSize(2);
     }
 
     @Test
@@ -58,7 +68,7 @@ class TransactionImportServiceTest {
 
         when(transactionRepository.findExistingHashes(any()))
                 .thenReturn(Set.of(hashSupermercado, hashSalario));
-        TransactionImportService service = new TransactionImportService(transactionRepository);
+        TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);
 
         ImportResult result = service.importCsv(CSV, "extrato-julho.csv");
 
@@ -70,6 +80,7 @@ class TransactionImportServiceTest {
         ArgumentCaptor<List<Transaction>> captor = ArgumentCaptor.forClass(List.class);
         verify(transactionRepository).saveAll(captor.capture());
         assertThat(captor.getValue()).isEmpty();
+        verify(eventPublisher, never()).publishEvent(any());
     }
 
     @Test
@@ -80,7 +91,7 @@ class TransactionImportServiceTest {
                 01/07/2026,Supermercado,-150.00
                 """;
         when(transactionRepository.findExistingHashes(any())).thenReturn(Set.of());
-        TransactionImportService service = new TransactionImportService(transactionRepository);
+        TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);
 
         ImportResult result = service.importCsv(csvComLinhaRepetida, "extrato-julho.csv");
 
@@ -91,7 +102,7 @@ class TransactionImportServiceTest {
     @Test
     void findExistingHashesRecebeOsHashesDeTodasAsLinhasValidas() {
         when(transactionRepository.findExistingHashes(any())).thenReturn(Set.of());
-        TransactionImportService service = new TransactionImportService(transactionRepository);
+        TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);
 
         service.importCsv(CSV, "extrato-julho.csv");
 

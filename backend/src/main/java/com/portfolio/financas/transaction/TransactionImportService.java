@@ -1,12 +1,14 @@
 package com.portfolio.financas.transaction;
 
 import com.portfolio.financas.transaction.dto.ImportResult;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Persiste o resultado do parsing de CSV (CsvTransactionParser) com
@@ -19,9 +21,12 @@ import java.util.Set;
 public class TransactionImportService {
 
     private final TransactionRepository transactionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
-    public TransactionImportService(TransactionRepository transactionRepository) {
+    public TransactionImportService(TransactionRepository transactionRepository,
+                                     ApplicationEventPublisher eventPublisher) {
         this.transactionRepository = transactionRepository;
+        this.eventPublisher = eventPublisher;
     }
 
     public ImportResult importCsv(String csvContent, String originFilename) {
@@ -55,6 +60,11 @@ public class TransactionImportService {
         }
 
         transactionRepository.saveAll(toPersist);
+
+        if (!toPersist.isEmpty()) {
+            List<UUID> transactionIds = toPersist.stream().map(Transaction::getId).toList();
+            eventPublisher.publishEvent(new TransactionsImportedEvent(transactionIds));
+        }
 
         return new ImportResult(toPersist.size(), ignoradasDuplicadas, outcome.invalidRows());
     }
