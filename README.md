@@ -103,9 +103,18 @@ ressalva: o operador delegou a revisao/defesa tecnica da camada de IA e
 mensageria, entao a justificativa formal (por que e assincrono, o que
 acontece quando o LLM falha) esta documentada em
 `docs/adr/002-categorizacao-assincrona.md` em vez de internalizada pelo
-operador (ver `.planning/STATE.md` para o detalhe). E-5 (testes
-automatizados + CI) e E-6 (deploy publico + documentacao final) ainda nao
-foram iniciados.
+operador (ver `.planning/STATE.md` para o detalhe).
+
+E-5 (testes automatizados + CI) tambem esta completo: testes unitarios para
+as camadas que so tinham cobertura indireta, testes de integracao com
+Testcontainers (Postgres + RabbitMQ reais, nao mockados) cobrindo import de
+CSV, CRUD de categoria e o fluxo completo de retry/dead-letter queue, e um
+pipeline GitHub Actions (`.github/workflows/ci.yml`) para backend e
+frontend. Ressalva: como este repositorio nao tem remote configurado, um
+run real do GitHub Actions ("CI verde" no sentido literal) ainda nao foi
+confirmado — ver `.planning/STATE.md` (CP-5) para o detalhe do que foi
+verificado localmente. E-6 (deploy publico + documentacao final) ainda nao
+foi iniciado.
 
 ## Documentacao
 
