@@ -1,6 +1,7 @@
 package com.portfolio.financas.common;
 
 import com.portfolio.financas.ai.GroqApiException;
+import com.portfolio.financas.messaging.DeadLetterQueueUnavailableException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -53,6 +54,16 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(GroqApiException.class)
     public ResponseEntity<ErrorResponse> handleGroqApiFailure(GroqApiException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ErrorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(), ex.getMessage()));
+    }
+
+    /**
+     * Cobre falha ao consultar a dead-letter queue de categorizacao
+     * (RabbitMQ indisponivel ou fila inacessivel).
+     */
+    @ExceptionHandler(DeadLetterQueueUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleDeadLetterQueueUnavailable(DeadLetterQueueUnavailableException ex) {
         return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .body(new ErrorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(), ex.getMessage()));
     }
