@@ -100,6 +100,57 @@ class TransactionImportServiceTest {
     }
 
     @Test
+    void importStatementDespachaParaOfxQuandoExtensaoDoArquivoEOfx() {
+        String ofx = """
+                <OFX>
+                <STMTTRN>
+                <DTPOSTED>20260701
+                <TRNAMT>-150.00
+                <NAME>Supermercado
+                </STMTTRN>
+                </OFX>
+                """;
+        when(transactionRepository.findExistingHashes(any())).thenReturn(Set.of());
+        TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);
+
+        ImportResult result = service.importStatement(ofx, "extrato-julho.ofx");
+
+        assertThat(result.importadas()).isEqualTo(1);
+        assertThat(result.invalidas()).isEmpty();
+    }
+
+    @Test
+    void importStatementDetectaOfxPeloConteudoQuandoExtensaoNaoAjuda() {
+        String ofx = """
+                OFXHEADER:100
+                DATA:OFXSGML
+                <OFX>
+                <STMTTRN>
+                <DTPOSTED>20260701
+                <TRNAMT>-150.00
+                <NAME>Supermercado
+                </STMTTRN>
+                </OFX>
+                """;
+        when(transactionRepository.findExistingHashes(any())).thenReturn(Set.of());
+        TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);
+
+        ImportResult result = service.importStatement(ofx, "extrato-sem-extensao");
+
+        assertThat(result.importadas()).isEqualTo(1);
+    }
+
+    @Test
+    void importStatementDespachaParaCsvPorPadrao() {
+        when(transactionRepository.findExistingHashes(any())).thenReturn(Set.of());
+        TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);
+
+        ImportResult result = service.importStatement(CSV, "extrato-julho.csv");
+
+        assertThat(result.importadas()).isEqualTo(2);
+    }
+
+    @Test
     void findExistingHashesRecebeOsHashesDeTodasAsLinhasValidas() {
         when(transactionRepository.findExistingHashes(any())).thenReturn(Set.of());
         TransactionImportService service = new TransactionImportService(transactionRepository, eventPublisher);

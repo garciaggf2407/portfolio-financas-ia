@@ -30,11 +30,34 @@ public class TransactionImportService {
     }
 
     public ImportResult importCsv(String csvContent, String originFilename) {
-        CsvTransactionParser.ParseOutcome outcome = CsvTransactionParser.parse(csvContent);
+        ParseOutcome outcome = CsvTransactionParser.parse(csvContent);
         return persist(outcome, originFilename);
     }
 
-    private ImportResult persist(CsvTransactionParser.ParseOutcome outcome, String originFilename) {
+    public ImportResult importOfx(String ofxContent, String originFilename) {
+        ParseOutcome outcome = OfxTransactionParser.parse(ofxContent);
+        return persist(outcome, originFilename);
+    }
+
+    /**
+     * Ponto de entrada usado pelo controller: detecta o formato do extrato
+     * (CSV ou OFX) a partir do nome do arquivo e, como fallback, do
+     * conteudo (extratos OFX comecam com "OFXHEADER:" ou contem a tag
+     * &lt;OFX&gt;), e despacha para o parser correspondente.
+     */
+    public ImportResult importStatement(String content, String originFilename) {
+        return isOfx(content, originFilename) ? importOfx(content, originFilename) : importCsv(content, originFilename);
+    }
+
+    private boolean isOfx(String content, String originFilename) {
+        if (originFilename != null && originFilename.toLowerCase(java.util.Locale.ROOT).endsWith(".ofx")) {
+            return true;
+        }
+        String head = content == null ? "" : content.stripLeading();
+        return head.regionMatches(true, 0, "OFXHEADER:", 0, "OFXHEADER:".length()) || head.contains("<OFX>");
+    }
+
+    private ImportResult persist(ParseOutcome outcome, String originFilename) {
         List<ParsedTransactionRow> rows = outcome.validRows();
 
         Set<String> hashesInBatch = new HashSet<>();

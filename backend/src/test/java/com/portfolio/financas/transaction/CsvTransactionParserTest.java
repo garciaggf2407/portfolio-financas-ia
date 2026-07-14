@@ -1,6 +1,5 @@
 package com.portfolio.financas.transaction;
 
-import com.portfolio.financas.transaction.CsvTransactionParser.ParseOutcome;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

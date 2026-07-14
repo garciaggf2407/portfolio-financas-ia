@@ -13,11 +13,13 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 
 /**
- * Upload de extrato bancario em CSV (colunas: data, descricao, valor).
- * O parsing tolerante a formato (separador ',' ou ';', datas dd/MM/yyyy
- * ou yyyy-MM-dd) e a deduplicacao contra transacoes ja existentes sao
- * responsabilidade de TransactionImportService (T-2.1.2); este controller
- * cuida apenas do transporte HTTP (multipart -> texto -> resultado JSON).
+ * Upload de extrato bancario em CSV ou OFX. O formato e detectado
+ * automaticamente (extensao do arquivo, com fallback de conteudo) por
+ * TransactionImportService#importStatement -- o usuario nao precisa
+ * escolher o formato manualmente. Parsing tolerante e deduplicacao contra
+ * transacoes ja existentes sao responsabilidade de TransactionImportService
+ * (T-2.1.2/E-7); este controller cuida apenas do transporte HTTP (multipart
+ * -> texto -> resultado JSON).
  */
 @RestController
 public class CsvImportController {
@@ -31,11 +33,11 @@ public class CsvImportController {
     @PostMapping(value = "/transactions/import", consumes = "multipart/form-data")
     public ResponseEntity<ImportResult> importTransactions(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            throw new InvalidRequestException("Arquivo CSV ausente ou vazio.");
+            throw new InvalidRequestException("Arquivo de extrato ausente ou vazio.");
         }
 
         String content = readAsUtf8(file);
-        ImportResult result = transactionImportService.importCsv(content, file.getOriginalFilename());
+        ImportResult result = transactionImportService.importStatement(content, file.getOriginalFilename());
         return ResponseEntity.ok(result);
     }
 

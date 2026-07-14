@@ -51,14 +51,14 @@ function UploadPage() {
     <section className={styles.page}>
       <h2 className={styles.title}>Importar extrato</h2>
       <p className={styles.subtitle}>
-        Envie um arquivo CSV com colunas de data, descrição e valor.
+        Envie um arquivo CSV (data, descrição, valor) ou OFX exportado pelo seu banco.
       </p>
 
       <form className={styles.form} onSubmit={handleSubmit}>
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,text/csv,.ofx,application/x-ofx"
           className={styles.fileInput}
           onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
         />

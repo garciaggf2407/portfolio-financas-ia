@@ -42,9 +42,6 @@ final class CsvTransactionParser {
     private CsvTransactionParser() {
     }
 
-    record ParseOutcome(List<ParsedTransactionRow> validRows, List<ImportRowError> invalidRows) {
-    }
-
     private record ColumnLayout(int dataIdx, int descricaoIdx, int valorIdx, int minColumns, boolean exactMatch) {
     }
 
