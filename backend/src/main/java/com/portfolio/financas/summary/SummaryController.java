@@ -1,11 +1,16 @@
 package com.portfolio.financas.summary;
 
+import com.portfolio.financas.ai.MonthlySummaryService;
+import com.portfolio.financas.common.ErrorResponse;
 import com.portfolio.financas.common.InvalidRequestException;
+import com.portfolio.financas.summary.dto.AiSummaryResponse;
 import com.portfolio.financas.summary.dto.CategorySummaryItemResponse;
 import com.portfolio.financas.summary.dto.CategorySummaryResponse;
 import com.portfolio.financas.summary.dto.MonthlyTotalResponse;
 import com.portfolio.financas.transaction.CategoryTotalProjection;
 import com.portfolio.financas.transaction.TransactionRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -19,6 +24,7 @@ import java.util.regex.Pattern;
  * SUM+GROUP BY no banco (TransactionRepository#sumByCategoryForMonth),
  * nunca agregacao em memoria (ver acceptance criteria de T-2.3.1).
  * GET /summary/history (T-2.3.2) delega para SummaryHistoryService.
+ * GET /summary/{yearMonth}/ai (T-4.2.1) delega para MonthlySummaryService.
  */
 @RestController
 public class SummaryController {
@@ -30,11 +36,14 @@ public class SummaryController {
 
     private final TransactionRepository transactionRepository;
     private final SummaryHistoryService summaryHistoryService;
+    private final MonthlySummaryService monthlySummaryService;
 
     public SummaryController(TransactionRepository transactionRepository,
-                              SummaryHistoryService summaryHistoryService) {
+                              SummaryHistoryService summaryHistoryService,
+                              MonthlySummaryService monthlySummaryService) {
         this.transactionRepository = transactionRepository;
         this.summaryHistoryService = summaryHistoryService;
+        this.monthlySummaryService = monthlySummaryService;
     }
 
     @GetMapping("/summary/{yearMonth}")
@@ -58,6 +67,18 @@ public class SummaryController {
                             + ", recebido: " + months);
         }
         return summaryHistoryService.history(months);
+    }
+
+    @GetMapping("/summary/{yearMonth}/ai")
+    public ResponseEntity<?> getAiSummary(@PathVariable String yearMonth) {
+        validateYearMonth(yearMonth);
+
+        return monthlySummaryService.getOrGenerate(yearMonth)
+                .<ResponseEntity<?>>map(summary -> ResponseEntity.ok(AiSummaryResponse.from(summary)))
+                .orElseGet(() -> ResponseEntity.status(HttpStatus.ACCEPTED)
+                        .body(new ErrorResponse(HttpStatus.ACCEPTED.value(),
+                                "Resumo ainda nao disponivel para " + yearMonth
+                                        + " (sem transacoes no mes).")));
     }
 
     private void validateYearMonth(String yearMonth) {

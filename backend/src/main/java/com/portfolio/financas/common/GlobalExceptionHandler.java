@@ -1,5 +1,6 @@
 package com.portfolio.financas.common;
 
+import com.portfolio.financas.ai.GroqApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -42,5 +43,17 @@ public class GlobalExceptionHandler {
         String message = "Parametro '" + ex.getName() + "' invalido: '" + ex.getValue() + "'";
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ErrorResponse(HttpStatus.BAD_REQUEST.value(), message));
+    }
+
+    /**
+     * Cobre qualquer falha na integracao com a Groq API (categorizacao ou
+     * resumo mensal): timeout, rate limit do free tier, erro HTTP ou
+     * resposta malformada. 503 sinaliza ao cliente que o provedor de IA
+     * esta indisponivel, nao que a requisicao em si esta errada.
+     */
+    @ExceptionHandler(GroqApiException.class)
+    public ResponseEntity<ErrorResponse> handleGroqApiFailure(GroqApiException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new ErrorResponse(HttpStatus.SERVICE_UNAVAILABLE.value(), ex.getMessage()));
     }
 }
