@@ -92,9 +92,17 @@ O frontend sobe em `http://localhost:5173` (padrao do Vite).
 ## Status do projeto
 
 Este repositorio esta sendo construido de forma incremental via Blueprint
-ATHENA OS. Fase atual: **E-1 (Fundacao)** — setup de ambiente, modelo de
-dados e contrato de API. Categorizacao via IA e mensageria assincrona
-(RabbitMQ) chegam na fase E-4.
+ATHENA OS. Fases E-1 (Fundacao), E-2 (Backend Core), E-3 (Frontend) e E-4
+(IA + Mensageria) tem o codigo completo e verificado ponta a ponta contra
+infraestrutura real (docker-compose + chave real da Groq API): import de
+CSV, categorizacao automatica assincrona via LLM, resumo mensal em
+linguagem natural com cache, e fila com retry/dead-letter queue.
+
+E-4 aguarda **CP-4**, o checkpoint humano mais critico do blueprint: o
+operador precisa revisar e conseguir explicar, sem consultar o codigo, por
+que a categorizacao e assincrona e o que acontece quando o LLM falha (ver
+`.planning/STATE.md`). E-5 (testes automatizados + CI) e E-6 (deploy
+publico + documentacao final) ainda nao foram iniciados.
 
 ## Documentacao
 
