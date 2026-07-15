@@ -42,12 +42,17 @@ function categoryIcon(nome: string | null | undefined): string {
   return CATEGORY_ICONS[nome.toLowerCase()] ?? FALLBACK_ICON;
 }
 
+// Valor de filtro reservado (nao colide com nenhum UUID de categoria real).
+const UNCATEGORIZED_FILTER = 'SEM_CATEGORIA';
+
 function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [searchText, setSearchText] = useState('');
+  const [filterCategoryId, setFilterCategoryId] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +108,18 @@ function TransactionsPage() {
     }
   }
 
+  const filteredTransactions = transactions.filter((transaction) => {
+    const matchesSearch =
+      searchText.trim() === '' ||
+      transaction.descricao.toLowerCase().includes(searchText.trim().toLowerCase());
+    const matchesCategory =
+      filterCategoryId === '' ||
+      (filterCategoryId === UNCATEGORIZED_FILTER
+        ? transaction.categoria === null
+        : transaction.categoria?.id === filterCategoryId);
+    return matchesSearch && matchesCategory;
+  });
+
   return (
     <section className={styles.page}>
       <h2 className={styles.title}>Transações</h2>
@@ -113,12 +130,39 @@ function TransactionsPage() {
         </div>
       )}
 
+      {!isLoading && transactions.length > 0 && (
+        <div className={styles.filtersRow}>
+          <input
+            type="text"
+            className={styles.searchInput}
+            placeholder="Buscar por descrição..."
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+          />
+          <select
+            className={styles.select}
+            value={filterCategoryId}
+            onChange={(e) => setFilterCategoryId(e.target.value)}
+          >
+            <option value="">Todas as categorias</option>
+            <option value={UNCATEGORIZED_FILTER}>{NO_CATEGORY_ICON} Sem categoria</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {categoryIcon(category.nome)} {category.nome}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {isLoading ? (
         <p>Carregando transações...</p>
       ) : transactions.length === 0 ? (
         <p className={styles.emptyState}>
           Nenhuma transação encontrada. Importe um CSV na tela de Upload.
         </p>
+      ) : filteredTransactions.length === 0 ? (
+        <p className={styles.emptyState}>Nenhuma transação corresponde ao filtro/busca atual.</p>
       ) : (
         <table className={styles.table}>
           <thead>
@@ -130,7 +174,7 @@ function TransactionsPage() {
             </tr>
           </thead>
           <tbody>
-            {transactions.map((transaction) => {
+            {filteredTransactions.map((transaction) => {
               const isUncategorized = transaction.statusCategorizacao === 'sem_categoria';
               return (
                 <tr
