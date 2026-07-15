@@ -35,49 +35,73 @@ import java.util.Map;
  * publicar na DLQ, sem depender de inspecionar o header x-death do
  * RabbitMQ. O consumer (CategorizationConsumer) so precisa deixar a
  * excecao propagar -- todo o retry/recovery acontece fora dele.
+ *
+ * Nomes de exchange/fila/DLQ sao configuraveis (categorization.messaging.*,
+ * default = nomes historicos) em vez de constantes fixas: contextos Spring
+ * de teste diferentes (um por classe de integracao) compartilham o mesmo
+ * broker Testcontainers (singleton container pattern), e com nomes fixos
+ * cada contexto registra seu proprio @RabbitListener na MESMA fila fisica
+ * -- "competing consumers" entre classes de teste (ja visto e so
+ * parcialmente contornado em 41452bc). CategorizationRetryDlqIntegrationTest
+ * sobrescreve essas properties com nomes unicos pra eliminar a raiz do
+ * problema, nao so o sintoma.
  */
 @Configuration
 public class RabbitConfig {
 
-    public static final String CATEGORIZATION_EXCHANGE = "financas.categorization.exchange";
-    public static final String CATEGORIZATION_QUEUE = "transaction.categorization";
-    public static final String CATEGORIZATION_ROUTING_KEY = "categorization";
-
-    public static final String CATEGORIZATION_DLX = "financas.categorization.dlx";
-    public static final String CATEGORIZATION_DLQ = "transaction.categorization.dlq";
-    public static final String CATEGORIZATION_DLQ_ROUTING_KEY = "categorization.dlq";
-
     static final String HEADER_ATTEMPTS = "x-tentativas";
     static final String HEADER_FAILED_AT = "x-falhou-em";
 
+    private final String exchangeName;
+    private final String queueName;
+    private final String routingKey;
+    private final String dlxName;
+    private final String dlqName;
+    private final String dlqRoutingKey;
+
+    public RabbitConfig(
+            @Value("${categorization.messaging.exchange:financas.categorization.exchange}") String exchangeName,
+            @Value("${categorization.messaging.queue:transaction.categorization}") String queueName,
+            @Value("${categorization.messaging.routing-key:categorization}") String routingKey,
+            @Value("${categorization.messaging.dlx:financas.categorization.dlx}") String dlxName,
+            @Value("${categorization.messaging.dlq:transaction.categorization.dlq}") String dlqName,
+            @Value("${categorization.messaging.dlq-routing-key:categorization.dlq}") String dlqRoutingKey) {
+        this.exchangeName = exchangeName;
+        this.queueName = queueName;
+        this.routingKey = routingKey;
+        this.dlxName = dlxName;
+        this.dlqName = dlqName;
+        this.dlqRoutingKey = dlqRoutingKey;
+    }
+
     @Bean
     DirectExchange categorizationExchange() {
-        return new DirectExchange(CATEGORIZATION_EXCHANGE);
+        return new DirectExchange(exchangeName);
     }
 
     @Bean
     Queue categorizationQueue() {
-        return QueueBuilder.durable(CATEGORIZATION_QUEUE).build();
+        return QueueBuilder.durable(queueName).build();
     }
 
     @Bean
     Binding categorizationBinding(Queue categorizationQueue, DirectExchange categorizationExchange) {
-        return BindingBuilder.bind(categorizationQueue).to(categorizationExchange).with(CATEGORIZATION_ROUTING_KEY);
+        return BindingBuilder.bind(categorizationQueue).to(categorizationExchange).with(routingKey);
     }
 
     @Bean
     DirectExchange categorizationDlx() {
-        return new DirectExchange(CATEGORIZATION_DLX);
+        return new DirectExchange(dlxName);
     }
 
     @Bean
     Queue categorizationDlq() {
-        return QueueBuilder.durable(CATEGORIZATION_DLQ).build();
+        return QueueBuilder.durable(dlqName).build();
     }
 
     @Bean
     Binding categorizationDlqBinding(Queue categorizationDlq, DirectExchange categorizationDlx) {
-        return BindingBuilder.bind(categorizationDlq).to(categorizationDlx).with(CATEGORIZATION_DLQ_ROUTING_KEY);
+        return BindingBuilder.bind(categorizationDlq).to(categorizationDlx).with(dlqRoutingKey);
     }
 
     @Bean
@@ -102,7 +126,7 @@ public class RabbitConfig {
     RepublishMessageRecoverer categorizationRecoverer(
             RabbitTemplate rabbitTemplate,
             @Value("${categorization.retry.max-attempts:3}") int maxAttempts) {
-        return new RepublishMessageRecoverer(rabbitTemplate, CATEGORIZATION_DLX, CATEGORIZATION_DLQ_ROUTING_KEY) {
+        return new RepublishMessageRecoverer(rabbitTemplate, dlxName, dlqRoutingKey) {
             @Override
             protected Map<? extends String, ?> additionalHeaders(Message message, Throwable cause) {
                 Map<String, Object> headers = new HashMap<>();

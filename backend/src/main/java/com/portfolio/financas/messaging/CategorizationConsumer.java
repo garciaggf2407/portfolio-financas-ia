@@ -20,7 +20,7 @@ public class CategorizationConsumer {
         this.autoCategorizationApplier = autoCategorizationApplier;
     }
 
-    @RabbitListener(queues = RabbitConfig.CATEGORIZATION_QUEUE)
+    @RabbitListener(queues = "${categorization.messaging.queue:transaction.categorization}")
     public void onMessage(CategorizationMessage message) {
         autoCategorizationApplier.aplicar(message.transactionId());
     }

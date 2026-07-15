@@ -9,6 +9,7 @@ import com.rabbitmq.client.LongString;
 import org.springframework.amqp.AmqpException;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.retry.RepublishMessageRecoverer;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -29,24 +30,27 @@ class CategorizationFailureService {
     private final RabbitTemplate rabbitTemplate;
     private final TransactionRepository transactionRepository;
     private final ObjectMapper objectMapper;
+    private final String dlqName;
 
     CategorizationFailureService(RabbitTemplate rabbitTemplate,
                                   TransactionRepository transactionRepository,
-                                  ObjectMapper objectMapper) {
+                                  ObjectMapper objectMapper,
+                                  @Value("${categorization.messaging.dlq:transaction.categorization.dlq}") String dlqName) {
         this.rabbitTemplate = rabbitTemplate;
         this.transactionRepository = transactionRepository;
         this.objectMapper = objectMapper;
+        this.dlqName = dlqName;
     }
 
     List<CategorizationFailureResponse> list(int limit) {
         try {
             List<GetResponse> raw = rabbitTemplate.execute(channel -> {
-                long available = channel.queueDeclarePassive(RabbitConfig.CATEGORIZATION_DLQ).getMessageCount();
+                long available = channel.queueDeclarePassive(dlqName).getMessageCount();
                 int toRead = (int) Math.min(limit, available);
 
                 List<GetResponse> responses = new ArrayList<>(toRead);
                 for (int i = 0; i < toRead; i++) {
-                    GetResponse response = channel.basicGet(RabbitConfig.CATEGORIZATION_DLQ, false);
+                    GetResponse response = channel.basicGet(dlqName, false);
                     if (response == null) {
                         break;
                     }

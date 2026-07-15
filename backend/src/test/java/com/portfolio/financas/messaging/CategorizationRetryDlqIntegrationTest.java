@@ -39,11 +39,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * TransactionCategorizationService e mockado, para tornar a falha
  * deterministica sem depender da rede/Groq API; toda a mensageria
  * (producer, consumer, retry interceptor, DLX/DLQ, endpoint admin) e real.
+ *
+ * Exchange/fila/DLQ isolados com nomes unicos (sufixo "retrydlqtest") via
+ * categorization.messaging.* -- esta classe faz asserções sensiveis a
+ * timing sobre o resultado exato de cada mensagem, entao precisa ser a
+ * UNICA consumidora da sua fila. Sem isso, qualquer outro contexto Spring
+ * de teste ainda vivo no cache do Spring (todos compartilham o mesmo
+ * broker Testcontainers, singleton container pattern) registra seu proprio
+ * @RabbitListener na mesma fila fisica e compete pelas mensagens --
+ * "competing consumers" ja causou flakiness real em CI (visto em
+ * 41452bc, e de novo nesta mesma classe antes deste fix).
  */
 @TestPropertySource(properties = {
         "categorization.retry.max-attempts=2",
         "categorization.retry.initial-interval-ms=50",
-        "categorization.retry.multiplier=1.0"
+        "categorization.retry.multiplier=1.0",
+        "categorization.messaging.exchange=financas.categorization.exchange.retrydlqtest",
+        "categorization.messaging.queue=transaction.categorization.retrydlqtest",
+        "categorization.messaging.routing-key=categorization.retrydlqtest",
+        "categorization.messaging.dlx=financas.categorization.dlx.retrydlqtest",
+        "categorization.messaging.dlq=transaction.categorization.dlq.retrydlqtest",
+        "categorization.messaging.dlq-routing-key=categorization.dlq.retrydlqtest"
 })
 class CategorizationRetryDlqIntegrationTest extends AbstractIntegrationTest {
 
