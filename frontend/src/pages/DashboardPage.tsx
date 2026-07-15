@@ -122,7 +122,7 @@ function DashboardPage() {
 
       <DashboardKpis yearMonth={yearMonth} />
 
-      <div className={styles.chartsGrid}>
+      <div className={styles.cardsGrid}>
         <div className={styles.chartCard}>
           <h3 className={styles.chartTitle}>Gastos por categoria ({yearMonth})</h3>
           {summaryError && (
@@ -180,9 +180,11 @@ function DashboardPage() {
             </ResponsiveContainer>
           )}
         </div>
-      </div>
 
-      <AiSummaryCard yearMonth={yearMonth} />
+        <div className={styles.fullWidthCard}>
+          <AiSummaryCard yearMonth={yearMonth} />
+        </div>
+      </div>
     </section>
   );
 }

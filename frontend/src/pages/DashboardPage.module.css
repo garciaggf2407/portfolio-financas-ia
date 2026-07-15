@@ -34,17 +34,21 @@
   margin-bottom: 16px;
 }
 
-.chartsGrid {
+.cardsGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  gap: 20px;
   margin-bottom: 24px;
 }
 
 @media (max-width: 720px) {
-  .chartsGrid {
+  .cardsGrid {
     grid-template-columns: 1fr;
   }
+}
+
+.fullWidthCard {
+  grid-column: 1 / -1;
 }
 
 .chartCard {
