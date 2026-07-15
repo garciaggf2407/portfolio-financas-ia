@@ -20,6 +20,28 @@ function formatDate(isoDate: string): string {
   return `${day}/${month}/${year}`;
 }
 
+// Mapeamento por nome (seed de V1__init.sql), nao por id -- categorias sao
+// criadas dinamicamente via POST /categories, entao nao ha um campo
+// estavel tipo "codigo" pra mapear. Categoria custom criada pelo usuario
+// cai no fallback generico, categoria nula (sem_categoria) usa o icone de
+// interrogacao.
+const CATEGORY_ICONS: Record<string, string> = {
+  alimentacao: '🍔',
+  transporte: '🚗',
+  moradia: '🏠',
+  lazer: '🎮',
+  saude: '💊',
+  outros: '📦',
+  salario: '💰',
+};
+const FALLBACK_ICON = '🏷️';
+const NO_CATEGORY_ICON = '❓';
+
+function categoryIcon(nome: string | null | undefined): string {
+  if (!nome) return NO_CATEGORY_ICON;
+  return CATEGORY_ICONS[nome.toLowerCase()] ?? FALLBACK_ICON;
+}
+
 function TransactionsPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -126,6 +148,9 @@ function TransactionsPage() {
                     {currencyFormatter.format(transaction.valor)}
                   </td>
                   <td>
+                    <span className={styles.categoryIcon} aria-hidden="true">
+                      {categoryIcon(transaction.categoria?.nome)}
+                    </span>
                     <select
                       className={styles.select}
                       value={transaction.categoria?.id ?? ''}
@@ -137,7 +162,7 @@ function TransactionsPage() {
                       </option>
                       {categories.map((category) => (
                         <option key={category.id} value={category.id}>
-                          {category.nome}
+                          {categoryIcon(category.nome)} {category.nome}
                         </option>
                       ))}
                     </select>
