@@ -10,6 +10,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -109,6 +111,40 @@ class TransactionImportIntegrationTest extends AbstractIntegrationTest {
                         .isEqualTo(200);
             }
         }
+    }
+
+    @Test
+    void importaArquivoOfxRealDeBancoBrasileiroPeloEndpointHttpEAsTransacoesFicamVisiveis() throws Exception {
+        // Fluxo real ponta a ponta nunca exercitado antes: OfxTransactionParserTest
+        // testa so o parser isolado; este teste sobe o MESMO fixture pelo
+        // endpoint HTTP de verdade (deteccao automatica de formato por
+        // extensao, persistencia, deduplicacao) contra Postgres real,
+        // igual ao que TransactionsPage/UploadPage fazem na producao.
+        byte[] ofxBytes;
+        try (InputStream is = getClass().getResourceAsStream("/ofx/sample-real-br.ofx")) {
+            ofxBytes = is.readAllBytes();
+        } catch (IOException e) {
+            throw new IllegalStateException("Fixture /ofx/sample-real-br.ofx nao encontrada no classpath", e);
+        }
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "sample-real-br.ofx", "application/octet-stream", ofxBytes);
+
+        String importJson = mockMvc.perform(multipart("/transactions/import").file(file))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        ImportResult importResult = objectMapper.readValue(importJson, ImportResult.class);
+        assertThat(importResult.importadas()).isEqualTo(36);
+        assertThat(importResult.invalidas()).isEmpty();
+
+        // Sem yearMonth (o mesmo caminho corrigido em 5896f94) -- reconfirma
+        // o fix com dados de origem OFX, nao so CSV.
+        String listJson = mockMvc.perform(get("/transactions").param("size", "200"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        TransactionPageResponse page = objectMapper.readValue(listJson, TransactionPageResponse.class);
+
+        assertThat(page.content()).extracting(TransactionResponse::descricao)
+                .contains("COMPRA VISA ELECTRON", "DEPOSITO POUP.CORRENTE", "Pagto conta telefone");
     }
 
     @Test
