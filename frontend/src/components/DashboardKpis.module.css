@@ -1,0 +1,69 @@
+.kpiGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 720px) {
+  .kpiGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.kpiCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.kpiLabel {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.kpiValue {
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.kpiValuePositive {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a9c5b;
+}
+
+.kpiValueNegative {
+  font-size: 22px;
+  font-weight: 600;
+  color: #e5484d;
+}
+
+.kpiDeltaUp {
+  font-size: 22px;
+  font-weight: 600;
+  color: #e5484d;
+}
+
+.kpiDeltaDown {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a9c5b;
+}
+
+.loading {
+  margin-bottom: 24px;
+}
+
+.errorBox {
+  padding: 12px 16px;
+  border-radius: 6px;
+  border: 1px solid #e5484d;
+  background: rgba(229, 72, 77, 0.1);
+  color: #e5484d;
+  margin-bottom: 24px;
+}

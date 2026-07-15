@@ -15,6 +15,7 @@ import {
 import { ApiError, getMonthlySummary, getSpendingHistory } from '../api/client';
 import type { CategorySummary, MonthlyTotal } from '../api/types';
 import AiSummaryCard from '../components/AiSummaryCard';
+import DashboardKpis from '../components/DashboardKpis';
 import styles from './DashboardPage.module.css';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
@@ -118,6 +119,8 @@ function DashboardPage() {
           onChange={(e) => setYearMonth(e.target.value)}
         />
       </div>
+
+      <DashboardKpis yearMonth={yearMonth} />
 
       <div className={styles.chartsGrid}>
         <div className={styles.chartCard}>
