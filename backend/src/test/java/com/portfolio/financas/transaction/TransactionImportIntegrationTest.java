@@ -8,6 +8,7 @@ import com.portfolio.financas.transaction.dto.TransactionResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.nio.charset.StandardCharsets;
 
@@ -65,26 +66,49 @@ class TransactionImportIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void listaTransacoesSemFiltroDeMesOuStatusNaoQuebra() throws Exception {
-        // Caso nunca coberto antes: GET /transactions SEM yearMonth (nem
-        // status) e o comportamento DEFAULT de TransactionsPage.tsx (nao
-        // manda esses parametros) -- quebrava em producao (500, "could not
-        // determine data type of parameter") porque :yearMonth chegava NULL
-        // sem tipo explicito numa comparacao contra FUNCTION('to_char',...).
-        // Os demais testes desta classe sempre passam yearMonth explicito,
-        // entao nunca exercitaram este caminho.
+    void todasAsCombinacoesDeFiltrosOpcionaisDeGetTransactionsRespondem200() throws Exception {
+        // Teste combinatorio motivado por um bug real em producao
+        // (5896f94): GET /transactions SEM yearMonth (o comportamento
+        // DEFAULT de TransactionsPage.tsx -- nao manda esse parametro)
+        // quebrava com 500 ("could not determine data type of parameter"),
+        // porque nenhum teste desta classe testava a AUSENCIA de um filtro,
+        // so combinacoes onde yearMonth vinha preenchido. Em vez de
+        // adicionar so o caso que faltava, cobre o produto cartesiano
+        // inteiro de {yearMonth ausente/presente/sem-match} x {status
+        // ausente/cada valor do enum} -- 12 combinacoes -- para que a
+        // PROXIMA combinacao nao testada tambem nao vire um 500 silencioso.
+        // Smoke test (sempre 200), nao teste de conteudo -- conteudo
+        // filtrado corretamente ja e coberto pelos outros metodos desta
+        // classe.
         String csv = """
                 data,descricao,valor
-                05/07/2026,Padaria,-12.50
+                06/07/2026,Combinatorio,-1.00
                 """;
         MockMultipartFile file = new MockMultipartFile(
-                "file", "extrato-padaria.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+                "file", "extrato-combinatorio.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
         mockMvc.perform(multipart("/transactions/import").file(file)).andExpect(status().isOk());
 
-        mockMvc.perform(get("/transactions"))
-                .andExpect(status().isOk());
-        mockMvc.perform(get("/transactions").param("status", "sem_categoria"))
-                .andExpect(status().isOk());
+        String[] yearMonths = {null, "2026-07", "1900-01"};
+        String[] statuses = {null, "sem_categoria", "categorizada_manual", "categorizada_ia"};
+
+        for (String yearMonth : yearMonths) {
+            for (String statusFilter : statuses) {
+                MockHttpServletRequestBuilder request = get("/transactions");
+                if (yearMonth != null) {
+                    request = request.param("yearMonth", yearMonth);
+                }
+                if (statusFilter != null) {
+                    request = request.param("status", statusFilter);
+                }
+
+                int actualStatus = mockMvc.perform(request).andReturn().getResponse().getStatus();
+                assertThat(actualStatus)
+                        .withFailMessage(
+                                "GET /transactions?yearMonth=%s&status=%s respondeu %d (esperado 200)",
+                                yearMonth, statusFilter, actualStatus)
+                        .isEqualTo(200);
+            }
+        }
     }
 
     @Test
