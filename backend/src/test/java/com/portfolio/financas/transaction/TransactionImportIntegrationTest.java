@@ -65,6 +65,29 @@ class TransactionImportIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void listaTransacoesSemFiltroDeMesOuStatusNaoQuebra() throws Exception {
+        // Caso nunca coberto antes: GET /transactions SEM yearMonth (nem
+        // status) e o comportamento DEFAULT de TransactionsPage.tsx (nao
+        // manda esses parametros) -- quebrava em producao (500, "could not
+        // determine data type of parameter") porque :yearMonth chegava NULL
+        // sem tipo explicito numa comparacao contra FUNCTION('to_char',...).
+        // Os demais testes desta classe sempre passam yearMonth explicito,
+        // entao nunca exercitaram este caminho.
+        String csv = """
+                data,descricao,valor
+                05/07/2026,Padaria,-12.50
+                """;
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "extrato-padaria.csv", "text/csv", csv.getBytes(StandardCharsets.UTF_8));
+        mockMvc.perform(multipart("/transactions/import").file(file)).andExpect(status().isOk());
+
+        mockMvc.perform(get("/transactions"))
+                .andExpect(status().isOk());
+        mockMvc.perform(get("/transactions").param("status", "sem_categoria"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void reimportarOMesmoArquivoEDeduplicadoContraOHashJaPersistidoNoBanco() throws Exception {
         String csv = """
                 data,descricao,valor

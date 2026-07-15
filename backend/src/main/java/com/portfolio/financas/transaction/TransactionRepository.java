@@ -24,11 +24,24 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
      * to-one, nullable) evita LazyInitializationException ao montar
      * TransactionResponse -- controller acessa a categoria fora da
      * transacao do repositorio (spring.jpa.open-in-view=false).
+     *
+     * CAST(:yearMonth AS string) e obrigatorio: sem ele, quando o
+     * frontend chama GET /transactions sem yearMonth (o caso DEFAULT da
+     * tela de Transacoes -- TransactionsPage.tsx nao manda esse
+     * parametro), o Postgres recebe :yearMonth como NULL sem tipo
+     * explicito numa comparacao contra o retorno de FUNCTION('to_char',...),
+     * cujo tipo Hibernate nao consegue inferir -- "could not determine
+     * data type of parameter" em producao (500 sempre que yearMonth e
+     * omitido). So nao pegou em CI porque
+     * TransactionImportIntegrationTest sempre passa um yearMonth
+     * explicito; nunca exercitou o caso sem filtro (ver
+     * TransactionRepositoryTest#listaTransacoesSemFiltroDeMes, adicionado
+     * junto com este fix).
      */
     @Query("""
             SELECT t FROM Transaction t
             LEFT JOIN FETCH t.categoria
-            WHERE (:yearMonth IS NULL OR FUNCTION('to_char', t.data, 'YYYY-MM') = :yearMonth)
+            WHERE (:yearMonth IS NULL OR FUNCTION('to_char', t.data, 'YYYY-MM') = CAST(:yearMonth AS string))
             AND (:status IS NULL OR t.statusCategorizacao = :status)
             ORDER BY t.data DESC
             """)
