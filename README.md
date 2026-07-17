@@ -1,8 +1,8 @@
 # Portfolio Financas IA
 
 Gestor de financas pessoais que importa extrato bancario em CSV e categoriza
-transacoes automaticamente via IA (LLM). Construido seguindo o Blueprint
-`BP-2026-07-13-003` (ATHENA OS).
+transacoes automaticamente via IA (LLM). Construido seguindo um plano de
+implementacao estruturado em fases (blueprint `BP-2026-07-13-003`).
 
 ## Stack
 
@@ -133,8 +133,8 @@ O frontend sobe em `http://localhost:5173` (padrao do Vite).
 
 ## Status do projeto
 
-Este repositorio esta sendo construido de forma incremental via Blueprint
-ATHENA OS. Fases E-1 (Fundacao), E-2 (Backend Core), E-3 (Frontend) e E-4
+Este repositorio esta sendo construido de forma incremental via blueprint.
+Fases E-1 (Fundacao), E-2 (Backend Core), E-3 (Frontend) e E-4
 (IA + Mensageria) tem o codigo completo e verificado ponta a ponta contra
 infraestrutura real (docker-compose + chave real da Groq API): import de
 CSV, categorizacao automatica assincrona via LLM, resumo mensal em

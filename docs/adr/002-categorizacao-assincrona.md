@@ -3,7 +3,7 @@
 - **Status:** Aceito
 - **Data:** 2026-07-14
 - **Escopo:** E-4 (IA + Mensageria) — tasks T-4.3.1, T-4.3.2
-- **Decisores:** ATHENA (implementador), delegado pelo operador — ver nota em `.planning/STATE.md`, secao CP-4
+- **Decisores:** agente de codificacao (implementador), delegado pelo operador — ver nota em `_archive/athena-planning/STATE.md`, secao CP-4
 
 ## Contexto
 
